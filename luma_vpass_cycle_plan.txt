@@ -1,0 +1,45 @@
+================================================================================
+LUMA V-PASS: 4x16 STORE CYCLE-BY-CYCLE FLOW (128x128 CTU)
+================================================================================
+Stages: Load (l) | Decision (dB) | Filter (ed) | Store (st)
+Blocks: 0-31 per row group (RG)
+Row Groups: 0-31 (RG[0] to RG[31])
+Edges:  1-31 per row group (X=4, 8, ..., 124)
+Input:  4x4 block per cycle
+Output: 4x16 filtered window per cycle (p7...q7)
+--------------------------------------------------------------------------------
+Cyc | Load (l)      | Decision (dB) | Filter (ed) | Store (st) (4x16) | Notes
+----|---------------|---------------|-------------|-------------------|----------------
+1   | RG0-Blk 0     | --            | --          | --                | Load Start
+2   | RG0-Blk 1     | --            | --          | --                | 
+3   | RG0-Blk 2     | --            | --          | --                | Primer
+4   | RG0-Blk 3     | RG0-Edge 1    | --          | --                | dB Starts
+5   | RG0-Blk 4     | RG0-Edge 2    | RG0-Edge 1  | --                | ed Starts
+6   | RG0-Blk 5     | RG0-Edge 3    | RG0-Edge 2  | **RG0-Win 1**     | st Starts (Win 1)
+... | ...           | ...           | ...         | ...               | 
+32  | RG0-Blk 31    | RG0-Edge 29   | RG0-Edge 28 | RG0-Win 27        | Load RG0 End
+33  | RG1-Blk 0     | RG0-Edge 30   | RG0-Edge 29 | RG0-Win 28        | Load RG1 Start
+34  | RG1-Blk 1     | RG0-Edge 31   | RG0-Edge 30 | RG0-Win 29        | 
+35  | RG1-Blk 2     | -- STALL --   | RG0-Edge 31 | RG0-Win 30        | Row Stall
+36  | RG1-Blk 3     | RG1-Edge 1    | -- STALL -- | **RG0-Win 31**    | Last RG0 Out
+37  | RG1-Blk 4     | RG1-Edge 2    | RG1-Edge 1  | -- STALL --       | 
+38  | RG1-Blk 5     | RG1-Edge 3    | RG1-Edge 2  | **RG1-Win 1**     | 1st RG1 Out
+39  | RG1-Blk 6     | RG1-Edge 4    | RG1-Edge 3  | RG1-Win 2         | Steady state
+--------------------------------------------------------------------------------
+
+WINDOW & CORNER CASES (4x16 logic):
+1. Win Size: 4 rows × 16 pixels (p7...p0, q0...q7).
+2. Edge 1 (Win 1): 4x12 output (p3..p0, q0..q7) as p7..p4 are out CTU.
+3. Edge 31 (Win 31): 4x12 output (p7..p0, q3..q0) as q4..q7 are out CTU.
+4. Data Reuse: Consecutive windows (Win N and Win N+1) overlap by 12 samples. 
+   Final store logic should handle how these 4x16 bursts are committed to the 
+   Luma Line Buffer.
+
+OBSERVATIONS:
+- Each "Win K" contains all 16 filtered pixels corresponding to Edge K.
+- Row Groups index from 0 to 31 (for 128-high CTU).
+- Stall at Cycle 37 ensures RG0 is fully flushed before RG1 stores begin.
+
+================================================================================
+END OF PLAN
+================================================================================

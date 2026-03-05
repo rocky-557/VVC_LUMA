@@ -1,0 +1,44 @@
+Luma V-Pass Pipeline Trace: Zero-Startup Overlap
+================================================
+
+This trace demonstrates the optimized "Cycle 3 Decision" logic which 
+eliminates the startup delay.
+
+Inputs: B0 (Neighbor), B1..B32 (CTU Blocks).
+
+Cyc | S0 Load In | Buf Content (PRE-Load Shift State) | edge_idx | Decision Made (Combinational)
+----|------------|------------------------------------|----------|------------------------------
+1   | B0         | [  -  |  -  |  -  |  -  ]            | 0        | -
+2   | B1         | [  -  |  -  |  -  | B0 ]             | 0        | -
+3   | B2         | [  -  |  -  | B0  | B1 ]             | 1        | **Edge x=4** (p:B1, q:B2)
+4   | B3         | [  -  | B0  | B1  | B2 ]             | 2        | Edge x=8  (p:B2, q:B3)
+5   | B4         | [ B0  | B1  | B2  | B3 ]             | 3        | Edge x=12 (p:B3, q:B4)
+... | ...        | ...                                | ...      | ...
+32  | B31        | [ B27 | B28 | B29 | B30 ]            | 30       | Edge x=120
+33  | B32        | [ B28 | B29 | B30 | B31 ]            | 31       | Edge x=124
+34  | -          | [ B29 | B30 | B31 | B32 ]            | 0        | - (Done)
+
+-----------------------------------------------------------------------------------------------
+Pipeline Timing (Tracking Edge x=4):
+-----------------------------------
+Cycle 3: S0 (Load B2) + S1 (Decision Stage)
+         - Buffer contains [ - | - | B0 | B1 ].
+         - Block on input wire (block_in) is B2.
+         - Decision Logic uses:
+            - p0..p3 = Buf[12..15] (B1)
+            - p4..p7 = Buf[8..11] (B0)
+            - q0..q3 = Live block_in (B2)
+         - edge_idx = 1.
+
+Cycle 4: S2 (Filter Stage) 
+         - luma_filter_core processes B1 and B2.
+
+Cycle 5: S3 (Store Stage)
+         - Filtered results in S3 registers.
+
+Cycle 6: Output Driven
+         - valid_out = 1. Filtered data exits CTU.
+-----------------------------------------------------------------------------------------------
+
+Total Latency: 5 Cycles from first CTU load (B1) to first filtered result out.
+CTU Completion: All internal edges (x=4..124) processed by Cycle 33.

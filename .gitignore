@@ -1,0 +1,11 @@
+# Xilinx Vivado / xsim artifacts
+xsim.dir/
+*.wdb
+*.pb
+*.jou
+*.log
+xsim_*.backup.*
+
+# Build artifacts
+*.zip
+*.o
