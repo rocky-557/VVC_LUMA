@@ -1,4 +1,4 @@
-`timescale 1ns/1ps
+`timescale 1ns / 1ps
 // luma_filter_core.sv - Unified Luma Filter Engine
 // Wraps Weak, Strong, and Long filters.
 // Input: 8 pixels P, 8 pixels Q (Worst case VVC)
@@ -26,8 +26,9 @@ module luma_filter_core #(
     input logic [2:0] maxFilterLengthQ,  // 1, 3, 5, 7
 
     // Outputs
-    output logic [BIT_DEPTH-1:0] p_out[0:7],
-    output logic [BIT_DEPTH-1:0] q_out[0:7]
+    output logic [BIT_DEPTH-1:0] p_out     [0:7],
+    output logic [BIT_DEPTH-1:0] q_out     [0:7],
+    output logic [         15:0] write_mask
 );
 
   // =========================================================================
@@ -96,27 +97,30 @@ module luma_filter_core #(
     // Default: Pass-through everything
     p_out = p_in;
     q_out = q_in;
+    write_mask = 16'h0000;
 
     if (filter_enable) begin
       case (filter_type)
         2'd0: begin  // WEAK
           // Weak modifies p0, p1, q0, q1. Others passed through.
           // Assumes connection p_out_weak[0] -> p0, etc.
-          p_out[0] = p_out_weak[0];
-          p_out[1] = p_out_weak[1];
-          q_out[0] = q_out_weak[0];
-          q_out[1] = q_out_weak[1];
+          p_out[0]   = p_out_weak[0];
+          p_out[1]   = p_out_weak[1];
+          q_out[0]   = q_out_weak[0];
+          q_out[1]   = q_out_weak[1];
+          write_mask = 16'h03C0;  // Only p0,p1,q0,q1
         end
 
         2'd1: begin  // STRONG
           // Strong modifies p0..p2, q0..q2.
-          p_out[0] = p_out_strong[0];
-          p_out[1] = p_out_strong[1];
-          p_out[2] = p_out_strong[2];
+          p_out[0]   = p_out_strong[0];
+          p_out[1]   = p_out_strong[1];
+          p_out[2]   = p_out_strong[2];
 
-          q_out[0] = q_out_strong[0];
-          q_out[1] = q_out_strong[1];
-          q_out[2] = q_out_strong[2];
+          q_out[0]   = q_out_strong[0];
+          q_out[1]   = q_out_strong[1];
+          q_out[2]   = q_out_strong[2];
+          write_mask = 16'h07E0;  // Only p0..p2, q0..q2
         end
 
         2'd2: begin  // LONG
@@ -126,14 +130,19 @@ module luma_filter_core #(
             p_out[i] = p_out_long[i];
             q_out[i] = q_out_long[i];
           end
+          write_mask[7:0]  = ~(8'hFF >> maxFilterLengthP);
+          write_mask[15:8] = (8'hFF >> (8 - maxFilterLengthQ));
         end
 
         default: begin
           // Should not happen if enable is 1, but safe fallback
           p_out = p_in;
           q_out = q_in;
+          write_mask = 16'h0000;
         end
       endcase
+    end else begin
+      write_mask = 16'h0000;
     end
   end
 

@@ -113,6 +113,7 @@ module edge_decision #(
     dE = 2'd0;
     dEp = 1'b0;
     dEq = 1'b0;
+    filter_on = 1'b0;
 
     if (mode_vvc) begin
 
@@ -122,14 +123,16 @@ module edge_decision #(
       if (sidePisLargeBlk || sideQisLargeBlk) begin
         if (dL < beta) begin
           if (dSam0 && dSam3) begin
-            dE                   = 2'd3;  // LONG
+            filter_on            = 1'b1;
+            dE                   = 2'd2;  // LONG
             maxFilterLengthP_out = sidePisLargeBlk ? maxFilterLengthP_in : 3'd3;
             maxFilterLengthQ_out = sideQisLargeBlk ? maxFilterLengthQ_in : 3'd3;
             dEp                  = 1'b1;
             dEq                  = 1'b1;
           end else begin
             // dL < beta but dSam failed → WEAK (spec step 9, sidePQ reset to 0)
-            dE = 2'd1;
+            filter_on = 1'b1;
+            dE = 2'd0;  // WEAK (0-indexed)
             dEp = (maxFilterLengthP_in > 1 && maxFilterLengthQ_in > 1) &&
                   ((dp0 + dp3) < ((beta + (beta >> 1)) >> 3));
             dEq = (maxFilterLengthP_in > 1 && maxFilterLengthQ_in > 1) &&
@@ -144,13 +147,15 @@ module edge_decision #(
       end else if (d < beta) begin
         // Strong decision requires both sides maxFL > 2 (§8.8.3.6.2 step 9c)
         if (dSam0 && dSam3 && (maxFilterLengthP_in > 2) && (maxFilterLengthQ_in > 2)) begin
-          dE                   = 2'd2;  // STRONG
+          filter_on            = 1'b1;
+          dE                   = 2'd1;  // STRONG (0-indexed)
           maxFilterLengthP_out = 3'd3;
           maxFilterLengthQ_out = 3'd3;
           dEp                  = 1'b1;
           dEq                  = 1'b1;
         end else begin
-          dE = 2'd1;  // WEAK
+          filter_on = 1'b1;
+          dE = 2'd0;  // WEAK
           dEp = (maxFilterLengthP_in > 1 && maxFilterLengthQ_in > 1) &&
                 ((dp0 + dp3) < ((beta + (beta >> 1)) >> 3));
           dEq = (maxFilterLengthP_in > 1 && maxFilterLengthQ_in > 1) &&
@@ -164,13 +169,15 @@ module edge_decision #(
       // ---- HEVC Fallback: gate on d only ----
       if (d < beta) begin
         if (check_strong_hevc()) begin
-          dE                   = 2'd2;  // STRONG
+          filter_on            = 1'b1;
+          dE                   = 2'd1;  // STRONG (0-indexed)
           maxFilterLengthP_out = 3'd3;
           maxFilterLengthQ_out = 3'd3;
           dEp                  = 1'b1;
           dEq                  = 1'b1;
         end else begin
-          dE = 2'd1;  // WEAK
+          filter_on = 1'b1;
+          dE = 2'd0;  // WEAK
           dEp = (maxFilterLengthP_in > 1 && maxFilterLengthQ_in > 1) &&
                 ((dp0 + dp3) < ((beta + (beta >> 1)) >> 3));
           dEq = (maxFilterLengthP_in > 1 && maxFilterLengthQ_in > 1) &&
@@ -180,8 +187,6 @@ module edge_decision #(
         end
       end
     end
-
-    filter_on = (dE != 2'd0);
   end
 
   // -------------------------------------------------------------------------

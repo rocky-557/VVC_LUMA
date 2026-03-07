@@ -30,29 +30,34 @@ def gen_comparison(input_data_path, golden_path, rtl_path, save_path):
     inp_rtl_diff = np.abs(inp_data - rtl_data)
     max_inp_rtl_diff = np.max(inp_rtl_diff)
     
-    fig, axes = plt.subplots(1, 4, figsize=(20, 5))
+    fig, axes = plt.subplots(1, 5, figsize=(25, 5))
     
-    # Panel 1: Golden Reference
-    axes[0].imshow(golden_data, cmap='gray', vmin=0, vmax=255)
-    axes[0].set_title("Golden Reference (VVC)")
+    # Panel 1: Raw Input (Reference)
+    axes[0].imshow(inp_data, cmap='gray', vmin=0, vmax=255)
+    axes[0].set_title("Raw Input (Unfiltered)")
     axes[0].axis('off')
-    
-    # Panel 2: RTL Output
-    axes[1].imshow(rtl_data, cmap='gray', vmin=0, vmax=255)
-    axes[1].set_title("RTL Filtered Output")
+
+    # Panel 2: Golden Reference
+    axes[1].imshow(golden_data, cmap='gray', vmin=0, vmax=255)
+    axes[1].set_title("Golden Reference (VVC)")
     axes[1].axis('off')
     
-    # Panel 3: RTL vs Golden Difference (Verification)
-    im2 = axes[2].imshow(rtl_gold_diff, cmap='hot', vmin=0, vmax=max(5, max_rtl_gold_diff))
-    axes[2].set_title(f"RTL vs Golden (Max: {max_rtl_gold_diff})")
+    # Panel 3: RTL Output
+    axes[2].imshow(rtl_data, cmap='gray', vmin=0, vmax=255)
+    axes[2].set_title("RTL Filtered Output")
     axes[2].axis('off')
-    plt.colorbar(im2, ax=axes[2], fraction=0.046, pad=0.04)
-
-    # Panel 4: RTL vs Input Difference (Filter Activity)
-    im3 = axes[3].imshow(inp_rtl_diff, cmap='magma', vmin=0, vmax=max(5, max_inp_rtl_diff))
-    axes[3].set_title(f"Filter Activity (Max: {max_inp_rtl_diff})")
+    
+    # Panel 4: RTL vs Golden Difference (Verification)
+    im3 = axes[3].imshow(rtl_gold_diff, cmap='hot', vmin=0, vmax=max(5, max_rtl_gold_diff))
+    axes[3].set_title(f"RTL vs Golden (Max: {max_rtl_gold_diff})")
     axes[3].axis('off')
     plt.colorbar(im3, ax=axes[3], fraction=0.046, pad=0.04)
+
+    # Panel 5: RTL vs Input Difference (Filter Activity)
+    im4 = axes[4].imshow(inp_rtl_diff, cmap='magma', vmin=0, vmax=max(5, max_inp_rtl_diff))
+    axes[4].set_title(f"Filter Activity (Max: {max_inp_rtl_diff})")
+    axes[4].axis('off')
+    plt.colorbar(im4, ax=axes[4], fraction=0.046, pad=0.04)
     
     plt.suptitle("VVC Luma Deblocking Filter: RTL Verification & Filter Activity")
     plt.tight_layout()
@@ -62,4 +67,4 @@ def gen_comparison(input_data_path, golden_path, rtl_path, save_path):
     print(f"Max Filter Activity (RTL vs Input): {max_inp_rtl_diff}")
 
 if __name__ == "__main__":
-    gen_comparison('vectors/input_luma.txt', 'vectors/output_luma_qp45.txt', 'rtl_luma_out.txt', 'comparison.png')
+    gen_comparison('vectors/input_luma.txt', 'vectors/output_luma_qp45.txt', 'vectors/passtest.txt', 'comparison.png')
