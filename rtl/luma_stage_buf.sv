@@ -29,14 +29,12 @@ module luma_stage_buf #(
     output logic                 buf_valid
 );
 
-  // Internal 20x128 memory
+  // Internal 24x128 memory
   logic [BIT_DEPTH-1:0] mem[0:23][0:127];
 
   // Write address decode
   logic [4:0] wr_row_base;
-  logic [6:0] wr_col_base;
   assign wr_row_base = {wr_row_idx, 2'b00};
-  assign wr_col_base = {wr_col_idx, 2'b00} - 7'd8;
 
   // Read address decode
   logic [4:0] rd_row_base;
@@ -44,33 +42,40 @@ module luma_stage_buf #(
   assign rd_row_base = {rd_row_idx, 2'b00};
   assign rd_col_base = {rd_col_idx, 2'b00};
 
-  // Write path
-  logic [15:0] filter_epoch  [0:23][0:127];
-  logic [15:0] current_epoch;
+  // Write path: sliding history mask (64 bits total)
+  logic [15:0] filt_hist[0:3];
 
   always_ff @(posedge clk or negedge rst_n) begin
     if (!rst_n) begin
       foreach (mem[r, c]) mem[r][c] <= '0;
-      foreach (filter_epoch[r, c]) filter_epoch[r][c] <= '0;
+      foreach (filt_hist[r]) filt_hist[r] <= '0;
       buf_valid <= 1'b0;
-      current_epoch <= 16'd1;
     end else if (wr_valid && (wr_row_idx <= 3'd5)) begin
       for (int r = 0; r < 4; r++) begin
+        automatic logic [15:0] updated_mask = '0;
+        // Reset history at start of a row group
+        automatic logic [15:0] current_hist = (wr_edge == 5'd1) ? 16'h0 : filt_hist[r];
+
         for (int c = 0; c < 16; c++) begin
-          // Calculate target column with signed check to prevent wraparound
           automatic int target_x = $signed({1'b0, wr_col_idx, 2'b00}) - 8 + c;
           if (target_x >= 0 && target_x < 128) begin
             if (wr_mask[c]) begin
               mem[wr_row_base+r][target_x] <= wr_data[r][c];
-              filter_epoch[wr_row_base+r][target_x] <= current_epoch;
-            end else if (filter_epoch[wr_row_base+r][target_x] != current_epoch) begin
+              updated_mask[c] = 1'b1;
+            end else if (!current_hist[c]) begin
               mem[wr_row_base+r][target_x] <= wr_data[r][c];
+              updated_mask[c] = 1'b0;
+            end else begin
+              updated_mask[c] = 1'b1;  // Protected
             end
+          end else begin
+            updated_mask[c] = 1'b0;
           end
         end
+        // Shift history right by 4 columns for the next edge (Cycle i: c=4 -> Cycle i+1: c=0)
+        filt_hist[r] <= {4'h0, updated_mask[15:4]};
       end
       buf_valid <= 1'b1;
-      if (wr_edge == 5'd31) current_epoch <= current_epoch + 1;
     end
   end
 
