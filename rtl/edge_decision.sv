@@ -160,6 +160,7 @@ module edge_decision #(
                 ((dp0 + dp3) < ((beta + (beta >> 1)) >> 3));
           dEq = (maxFilterLengthP_in > 1 && maxFilterLengthQ_in > 1) &&
                 ((dq0 + dq3) < ((beta + (beta >> 1)) >> 3));
+
           maxFilterLengthP_out = 3'd1 + dEp;
           maxFilterLengthQ_out = 3'd1 + dEq;
         end

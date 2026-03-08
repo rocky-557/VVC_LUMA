@@ -20,8 +20,8 @@ module tb_luma_top;
   logic        [          7:0] qp_q = 45;
   logic signed [          7:0] beta_offset = 0;
   logic signed [          7:0] tc_offset = 0;
-  logic        [          2:0] maxFilterLengthP_in = 7;
-  logic        [          2:0] maxFilterLengthQ_in = 7;
+  logic        [          2:0] maxFilterLengthP_in = 3;
+  logic        [          2:0] maxFilterLengthQ_in = 3;
   logic        [          1:0] bS = 2;
   logic                        mode_vvc = 1;
 
@@ -197,12 +197,65 @@ module tb_luma_top;
   integer ctu_rg_shadow = 0;
 
   // -------------------------------------------------------------------------
-  // DEBUG: Trace writes to row 106, col 58 (RG 26, Edge 16)
+  // DEBUG: Trace (64, 108) through V-Pass and H-Pass
   // -------------------------------------------------------------------------
   always @(posedge clk) begin
-    if (vp_edge_valid && (dut.u_stage_buf.wr_row_idx == 3'd2) && (vp_edge_idx == 5'd16)) begin
-      $display("SB_TRACE: Write to R106 C58! RG %0d, PixVal = %0d", vp_row_group,
-               dut.u_vpass.stage_out[2][2]);
+    if (vp_edge_valid && (vp_edge_idx == 5'd27) && (vp_row_group == 6'd16)) begin
+      $display("SYNC_VP: Cyc=%0d | RG=16, Edge=27 | In: %0d | Out: %0d | FilterOn: %b",
+               total_cycles, inp[64][108], dut.u_vpass.stage_out[0][8], dut.u_vpass.filter_on_reg);
+    end
+    if (vp_edge_valid && (vp_edge_idx == 5'd28) && (vp_row_group == 6'd16)) begin
+      $display("SYNC_VP: Cyc=%0d | RG=16, Edge=28 (x=112) | p3(x=108) Out: %0d | FilterOn: %b",
+               total_cycles, dut.u_vpass.stage_out[0][4], dut.u_vpass.filter_on_reg);
+    end
+
+    // Catch EVERY write to mem[16][108] across all window offsets
+    if (vp_edge_valid) begin
+      for (int r = 0; r < 4; r++) begin
+        if ((dut.u_stage_buf.wr_row_base + r) % 24 == 16) begin
+          for (int c = 0; c < 16; c++) begin
+            automatic int target_x = $signed({1'b0, dut.u_stage_buf.wr_col_idx, 2'b00}) - 8 + c;
+            if (target_x == 108) begin
+              // Only log if we are actually writing this pixel (not protected)
+              automatic
+              logic [15:0]
+              current_hist = (dut.u_stage_buf.wr_edge == 5'd1) ? 16'h0 : dut.u_stage_buf.filt_hist[r];
+              if (dut.u_stage_buf.wr_mask[c] || !current_hist[c]) begin
+                $display(
+                    "MEM_WRITE_ALL: Cyc=%0d | VP_RG=%0d | Edge=%0d | c=%0d | Wrote: %0d to (16, 108)",
+                    total_cycles, vp_row_group, vp_edge_idx, c, dut.u_vpass.stage_out[r][c]);
+              end
+            end
+          end
+        end
+      end
+    end
+  end
+
+  // -------------------------------------------------------------------------
+  // DEBUG: Direct Memory Array Monitor
+  // -------------------------------------------------------------------------
+  logic [7:0] prev_mem_val;
+  always @(posedge clk) begin
+    if (rst_n) begin
+      if (dut.u_stage_buf.mem[16][108] != prev_mem_val) begin
+        $display("MEM_CHANGE: Cyc=%0d | mem[16][108]: %0d -> %0d", total_cycles, prev_mem_val,
+                 dut.u_stage_buf.mem[16][108]);
+      end
+      prev_mem_val <= dut.u_stage_buf.mem[16][108];
+    end else begin
+      prev_mem_val <= '0;
+    end
+  end
+
+  // -------------------------------------------------------------------------
+  // DEBUG: Monitor Absolute Lag (Row Groups)
+  // -------------------------------------------------------------------------
+  always @(posedge clk) begin
+    if (rst_n && counting_cycles && (total_cycles % 100 == 0)) begin
+      $display("SYNC_PROG: Time=%t | VP_ABS_RG=%0d | HP_ABS_RG=%0d | Delta=%0d", $time,
+               dut.u_controller.vp_row_group, dut.u_controller.hp_rg, $signed
+               ({1'b0, dut.u_controller.vp_row_group}) - $signed({1'b0, dut.u_controller.hp_rg}));
     end
   end
 
