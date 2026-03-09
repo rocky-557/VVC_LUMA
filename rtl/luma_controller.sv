@@ -5,8 +5,9 @@
 module luma_controller (
     input logic clk,
     input logic rst_n,
-    input logic start,      // Start processing one 128x128 CTU
-    input logic load_valid, // Global enable for pipeline advance
+    input logic start,       // Start processing one 128x128 CTU
+    input logic load_valid,  // Global enable for pipeline advance
+    input logic mode_vvc,    // 0=HEVC (Weak/Strong only), 1=VVC (Long filter enabled)
 
     // V-Pass Control
     output logic [4:0] vp_block_cnt,  // 0-31 (Loading 4x4 blocks)
@@ -20,13 +21,20 @@ module luma_controller (
     output logic       buf_rd_en,   // H-Pass reading enable
 
     // H-Pass Control
-    output logic       hp_active,    // H-Pass in processing mode
-    output logic [4:0] hp_edge_cnt,  // 1-31 (Active edges)
-    output logic [4:0] hp_col_cnt,   // 0-31 (Scanning across row group)
-    output logic       hp_mask1,     // Boundary mask for edge 1
-    output logic       hp_mask31,    // Boundary mask for edge 31
-    output logic       hp_done       // Full CTU deblocking completed
+    output logic       hp_active,       // H-Pass in processing mode
+    output logic [4:0] hp_edge_cnt,     // 1-31 (Active edges)
+    output logic [4:0] hp_col_cnt,      // 0-31 (Scanning across row group)
+    output logic       hp_mask1,        // Boundary mask for edge 1
+    output logic       hp_mask31,       // Boundary mask for edge 31
+    output logic       hp_done,         // Full CTU deblocking completed
+    output logic       mode_vvc_out,    // Pass-through → vpass / hpass
+    output logic       vp_edge_active,  // 0 = skip this V-pass edge (HEVC: odd edge_idx)
+    output logic       hp_edge_active   // 0 = skip this H-pass edge (HEVC: odd row-group)
 );
+
+  // mode_vvc is a static config input; passed through to vpass/hpass via luma_top.
+  assign mode_vvc_out = mode_vvc;
+  // vp_edge_active / hp_edge_active: placed after variable declarations below.
 
   // Need a register for hp_done to prevent premature completion
   logic hp_done_reg;
@@ -147,7 +155,11 @@ module luma_controller (
   // =========================================================================
   assign buf_wr_ptr = vp_rg;
   assign buf_rd_ptr = hp_rg;
-  assign buf_rd_en  = (hp_state == HP_ACTIVE);
+  assign buf_rd_en = (hp_state == HP_ACTIVE);
+
+  // HEVC: only even edge_idx (8-pixel boundaries); VVC: all edges.
+  assign vp_edge_active = mode_vvc ? 1'b1 : !vp_ei[0];
+  assign hp_edge_active = mode_vvc ? 1'b1 : !hp_rg[0];
 
 endmodule
 

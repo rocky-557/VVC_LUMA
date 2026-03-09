@@ -14,16 +14,17 @@ module luma_hpass #(
     input logic rst_n,
     input logic load_valid,
 
-    input logic        [7:0] qp_p,
-    input logic        [7:0] qp_q,
+    input logic [7:0] qp_p,
+    input logic [7:0] qp_q,
     input logic signed [7:0] beta_offset,
     input logic signed [7:0] tc_offset,
-    input logic        [2:0] maxFilterLengthP_in,
-    input logic        [2:0] maxFilterLengthQ_in,
-    input logic        [1:0] bS,
-    input logic              mode_vvc,
-    input logic        [7:0] beta_in,
-    input logic        [9:0] tC_in,
+    input logic [2:0] maxFilterLengthP_in,
+    input logic [2:0] maxFilterLengthQ_in,
+    input logic [1:0] bS,
+    input logic mode_vvc,
+    input logic filter_gate,  // From controller: 0 = force filter off (HEVC skip)
+    input logic [7:0] beta_in,
+    input logic [9:0] tC_in,
 
     // Combinational input from luma_stage_buf (4×16 transposed read)
     input logic [BIT_DEPTH-1:0] block_in[0:3][0:15],
@@ -140,7 +141,7 @@ module luma_hpass #(
       mask1_s1             <= mask1_in;
       mask31_s1            <= mask31_in;
       tC_s1                <= tC_in;
-      filter_on_reg        <= filter_on_s1;
+      filter_on_reg        <= filter_on_s1 & filter_gate;
       filter_type_reg      <= filter_type_s1;
       dEp_reg              <= dEp_s1;
       dEq_reg              <= dEq_s1;

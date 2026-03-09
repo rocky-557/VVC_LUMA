@@ -19,16 +19,17 @@ module luma_vpass #(
     input logic [5:0] row_group_in, // from luma_controller: vp_row_group
 
     // Decision inputs (per edge, driven by upstream CU parser)
-    input logic        [7:0] qp_p,
-    input logic        [7:0] qp_q,
+    input logic [7:0] qp_p,
+    input logic [7:0] qp_q,
     input logic signed [7:0] beta_offset,
     input logic signed [7:0] tc_offset,
-    input logic        [2:0] maxFilterLengthP_in,
-    input logic        [2:0] maxFilterLengthQ_in,
-    input logic        [1:0] bS,
-    input logic              mode_vvc,
-    input logic        [7:0] beta_in,
-    input logic        [9:0] tC_in,
+    input logic [2:0] maxFilterLengthP_in,
+    input logic [2:0] maxFilterLengthQ_in,
+    input logic [1:0] bS,
+    input logic mode_vvc,
+    input logic filter_gate,  // From controller: 0 = force filter off (HEVC skip)
+    input logic [7:0] beta_in,
+    input logic [9:0] tC_in,
 
     // Outputs: filtered window + pipeline-aligned addresses for stage_buf
     output logic [BIT_DEPTH-1:0] stage_out[0:3][0:15],
@@ -143,7 +144,7 @@ module luma_vpass #(
       edge_idx_s1          <= edge_idx_in;
       row_group_s1         <= row_group_in;
       tC_s1                <= tC_in;
-      filter_on_reg        <= filter_on_s1;
+      filter_on_reg        <= filter_on_s1 & filter_gate;
       filter_type_reg      <= filter_type_s1;
       dEp_reg              <= dEp_s1;
       dEq_reg              <= dEq_s1;

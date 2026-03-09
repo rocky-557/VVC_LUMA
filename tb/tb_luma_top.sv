@@ -6,7 +6,9 @@ module tb_luma_top;
   parameter BIT_DEPTH = 8;
   parameter CTU_SIZE = 128;
 
-  // =========================================================================
+  // *** Toggle here: 0 = HEVC (skip odd 4-px edges), 1 = VVC (all edges) ***
+  localparam MODE_VVC = 0;
+
   // DUT I/O
   // =========================================================================
   logic clk, rst_n, load_valid, start;
@@ -23,7 +25,7 @@ module tb_luma_top;
   logic        [          2:0] maxFilterLengthP_in = 3;
   logic        [          2:0] maxFilterLengthQ_in = 3;
   logic        [          1:0] bS = 2;
-  logic                        mode_vvc = 1;
+  logic                        mode_vvc = MODE_VVC;
 
   // =========================================================================
   // DUT
@@ -77,6 +79,7 @@ module tb_luma_top;
   logic [BIT_DEPTH-1:0] output_mem [0:CTU_SIZE-1][0:CTU_SIZE-1];
   logic                 hp_modified[0:CTU_SIZE-1][0:CTU_SIZE-1];
   integer pass_cnt = 0, fail_cnt = 0, skip_cnt = 0;
+  integer hevc_skip_err = 0;  // HEVC: odd-boundary edges that wrongly produced non-zero mask
 
   // Shadow: maps each of the 24 stage-buf mem rows → CTU pixel row (0-127), -1 = unknown
   integer mem_row_to_ctu_row[0:23];
@@ -170,8 +173,15 @@ module tb_luma_top;
     // -----------------------------------------------------------------------
     // Results
     // -----------------------------------------------------------------------
+    $display("MODE    : %s", MODE_VVC ? "VVC" : "HEVC");
     $display("========================================");
     $display("HPASS vs INP: PASS=%0d  FAIL=%0d  SKIP=%0d", pass_cnt, fail_cnt, skip_cnt);
+    if (!MODE_VVC)
+      $display(
+          "HEVC SKIP-MASK CHK: %s (%0d odd-edge mask violations)",
+          hevc_skip_err == 0 ? "PASS" : "FAIL",
+          hevc_skip_err
+      );
     $display("========================================");
 
     begin
@@ -273,7 +283,38 @@ module tb_luma_top;
   end
 
   // =========================================================================
+  // HEVC Assertion: odd H-pass row-groups must produce hpass_mask == 0
+  // hpass_mask is 3 cycles delayed from when filter_gate was applied (S1→S2→S3),
+  // so we pipeline hp_edge_active by 3 cycles to align correctly.
+  // =========================================================================
+  logic hp_gate_d1, hp_gate_d2, hp_gate_d3;
+  always_ff @(posedge clk or negedge rst_n) begin
+    if (!rst_n) begin
+      hp_gate_d1 <= 1'b1;
+      hp_gate_d2 <= 1'b1;
+      hp_gate_d3 <= 1'b1;
+    end else if (load_valid) begin
+      hp_gate_d1 <= dut.u_controller.hp_edge_active;
+      hp_gate_d2 <= hp_gate_d1;
+      hp_gate_d3 <= hp_gate_d2;
+    end
+  end
+
+  always @(posedge clk) begin
+    if (hpass_valid && !MODE_VVC) begin
+      // hp_gate_d3 = 0 means this output corresponds to a skipped HEVC edge
+      if (!hp_gate_d3 && (hpass_mask != 16'h0000)) begin
+        $display(
+            "HEVC_ERR: Cyc=%0d | hp_gate_d3=0 (skipped edge) but hpass_mask=%016b (expected 0!)",
+            total_cycles, hpass_mask);
+        hevc_skip_err = hevc_skip_err + 1;
+      end
+    end
+  end
+
+  // =========================================================================
   // Verification: check H-Pass output pixels against inp[][]
+
   //
   // hpass_out[r][c] is the transposed 4×16 H-pass result:
   //   - column in CTU  : rd_col_base + r   (r ∈ 0..3 selects 4 adjacent CTU cols)

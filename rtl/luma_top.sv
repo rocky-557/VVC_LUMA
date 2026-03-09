@@ -73,25 +73,32 @@ module luma_top #(
   logic       ctrl_hp_mask1;  // → hpass input + stage_buf.mask1
   logic       ctrl_hp_mask31;  // → hpass input + stage_buf.mask31
   logic       ctrl_hp_done;
+  logic       ctrl_mode_vvc;  // pass-through from controller → vpass / hpass
+  logic       ctrl_vp_edge_active;  // 0 = skip V-pass edge in HEVC mode
+  logic       ctrl_hp_edge_active;  // 0 = skip H-pass edge in HEVC mode
 
   luma_controller u_controller (
-      .clk         (clk),
-      .rst_n       (rst_n),
-      .start       (start),
-      .load_valid  (load_valid),
-      .vp_block_cnt(ctrl_vp_block_cnt),
-      .vp_edge_idx (ctrl_vp_edge_idx),
-      .vp_row_group(ctrl_vp_row_group),
-      .vp_done     (ctrl_vp_done),
-      .buf_wr_ptr  (ctrl_buf_wr_ptr),
-      .buf_rd_ptr  (ctrl_buf_rd_ptr),
-      .buf_rd_en   (ctrl_buf_rd_en),
-      .hp_active   (ctrl_hp_active),
-      .hp_edge_cnt (ctrl_hp_edge_cnt),
-      .hp_col_cnt  (ctrl_hp_col_cnt),
-      .hp_mask1    (ctrl_hp_mask1),
-      .hp_mask31   (ctrl_hp_mask31),
-      .hp_done     (ctrl_hp_done)
+      .clk           (clk),
+      .rst_n         (rst_n),
+      .start         (start),
+      .load_valid    (load_valid),
+      .mode_vvc      (mode_vvc),
+      .vp_block_cnt  (ctrl_vp_block_cnt),
+      .vp_edge_idx   (ctrl_vp_edge_idx),
+      .vp_row_group  (ctrl_vp_row_group),
+      .vp_done       (ctrl_vp_done),
+      .buf_wr_ptr    (ctrl_buf_wr_ptr),
+      .buf_rd_ptr    (ctrl_buf_rd_ptr),
+      .buf_rd_en     (ctrl_buf_rd_en),
+      .hp_active     (ctrl_hp_active),
+      .hp_edge_cnt   (ctrl_hp_edge_cnt),
+      .hp_col_cnt    (ctrl_hp_col_cnt),
+      .hp_mask1      (ctrl_hp_mask1),
+      .hp_mask31     (ctrl_hp_mask31),
+      .hp_done       (ctrl_hp_done),
+      .mode_vvc_out  (ctrl_mode_vvc),
+      .vp_edge_active(ctrl_vp_edge_active),
+      .hp_edge_active(ctrl_hp_edge_active)
   );
 
   // =========================================================================
@@ -121,7 +128,8 @@ module luma_top #(
       .maxFilterLengthP_in(maxFilterLengthP_in),
       .maxFilterLengthQ_in(maxFilterLengthQ_in),
       .bS                 (bS),
-      .mode_vvc           (mode_vvc),
+      .mode_vvc           (ctrl_mode_vvc),
+      .filter_gate        (ctrl_vp_edge_active),
       .beta_in            (calculated_beta),
       .tC_in              (calculated_tC),
       // Outputs
@@ -187,7 +195,8 @@ module luma_top #(
       .maxFilterLengthP_in(maxFilterLengthP_in),
       .maxFilterLengthQ_in(maxFilterLengthQ_in),
       .bS                 (bS),
-      .mode_vvc           (mode_vvc),
+      .mode_vvc           (ctrl_mode_vvc),
+      .filter_gate        (ctrl_hp_edge_active),
       .beta_in            (calculated_beta),
       .tC_in              (calculated_tC),
       // Data from stage buffer
